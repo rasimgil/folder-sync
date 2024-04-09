@@ -1,53 +1,62 @@
 import argparse
+import os
+import shutil
 import time
 
-# main():
-#   if args.folder_source is None:
-#       print("argument error.")
-#       exit
-#   if args.folder_replica is None:
-#       create_folder(args.folder_replica)
-#   if timer = interval:
-#       for file in args.folder_source:
-#           file_replica = args.folder_replica[file]
-#           if file_replica != file or file_replica is None:
-#               sync(file, folder_replica)
+
+def synced(file_source: str, file_replica: str) -> bool:
+    return os.path.getmtime(file_source) == os.path.getmtime(file_replica)
 
 
-def create_folder(path_replica):
-    raise NotImplementedError()
+def sync_file(file_source: str, file_replica: str) -> None:
+    if not os.path.exists(file_replica):
+        print(f"created file: {file_replica}")
+    if not os.path.exists(file_replica) or not synced(file_source, file_replica):
+        os.makedirs(os.path.dirname(file_replica), exist_ok=True)
+        shutil.copy2(file_source, file_replica)
+        print(f"synced file: {file_replica} from {file_source}")
 
 
-def get_replica_file(file_source, path_replica):
-    raise NotImplementedError()
+def sync_directory(dir_source: str, dir_replica: str) -> None:
+    for item in os.listdir(dir_source):
+        item_source = os.path.join(dir_source, item)
+        item_replica = os.path.join(dir_replica, item)
+        if os.path.isdir(item_source):
+            if not os.path.exists(item_replica):
+                os.makedirs(item_replica)
+                print(f"created directory {item_replica}")
+            sync_directory(item_source, item_replica)
+        else:
+            sync_file(item_source, item_replica)
 
-
-def file_modified(file_source, file_replice):
-    raise NotImplementedError()
-
-
-def sync(file_source, folder_replica):
-    raise NotImplementedError()
+    for item in os.listdir(dir_replica):
+        item_replica = os.path.join(dir_replica, item)
+        item_source = os.path.join(dir_source, item)
+        if not os.path.exists(item_source):
+            if os.path.isdir(item_replica):
+                shutil.rmtree(item_replica)
+                print(f"deleted directory: {item_replica}")
+            else:
+                os.remove(item_replica)
+                print(f"deleted file {item_replica}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", help="Source folder path")
-    parser.add_argument("--replica", help="Replica folder path")
-    parser.add_argument("--interval", type=int, help="Sync interval")
-    parser.add_argument("-o", help="Log file path")
+    parser.add_argument("-s", "--source", type=str, help="Source folder path", required=True)
+    parser.add_argument("-r", "--replica", type=str, help="Replica folder path", required=True)
+    parser.add_argument("-i", "--interval", type=int, help="Sync interval", required=True)
+    parser.add_argument("-o", "--output", type=str, help="Log file path", required=True)
     args = parser.parse_args()
 
-    if args.source is None:
-        print("Argument error 1")
+    if not os.path.isdir(args.source):
+        print("source folder does not exist.")
         exit()
 
-    if args.replica is None:
-        create_folder(args.replica)
+    if not os.path.isdir(args.replica):
+        print(f"created replica folder: {args.replica}")
+        os.makedirs(args.replica)
 
-    timer = None
-    if timer == args.interval:
-        for file_source in args.source:
-            file_replica = get_replica_file(file_source, args.replica)
-            if file_modified(file_source, file_replica) or file_replica is None:
-                sync(file_source, args.replica)
+    while True:
+        sync_directory(args.source, args.replica)
+        time.sleep(args.interval)
